@@ -1,0 +1,3 @@
+// Local-only Supabase config. This file is gitignored.
+window.SUPABASE_URL = 'https://gqzknxvgczhideplpsbr.supabase.co'
+window.SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxemtueHZnY3poaWRlcGxwc2JyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzk5OTEsImV4cCI6MjA4OTExNTk5MX0.bix6yDBv9EaRuWkA0NT8G9HFZKTy4mReWF2JZR74DGU'
