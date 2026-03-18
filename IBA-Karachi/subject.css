@@ -321,3 +321,164 @@ main {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* ── RESPONSIVE ───────────────────────────────────── */
+@media (max-width: 980px) {
+  nav {
+    padding: 16px 24px;
+  }
+
+  main {
+    max-width: 760px;
+    padding: 44px 20px 64px;
+  }
+
+  .subject-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  nav {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+
+  .logo {
+    font-size: 18px;
+  }
+
+  .nav-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .nav-crumb {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+
+  main {
+    padding: 32px 14px 52px;
+  }
+
+  .page-header {
+    margin-bottom: 28px;
+  }
+
+  .page-header h1 {
+    line-height: 1.2;
+  }
+
+  .page-header p {
+    font-size: 14px;
+  }
+
+  .subject-grid {
+    gap: 12px;
+  }
+
+  .subject-card {
+    padding: 20px 16px 18px;
+    border-radius: 12px;
+  }
+
+  .subject-card::before {
+    border-radius: 12px 12px 0 0;
+  }
+
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 14px;
+  }
+
+  .card-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .card-top {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .card-top h2 {
+    font-size: 18px;
+  }
+
+  .card-tag {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .card-desc {
+    font-size: 12px;
+    margin-bottom: 14px;
+  }
+
+  .card-meta {
+    gap: 14px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .meta-value {
+    font-size: 15px;
+  }
+
+  .progress-row {
+    gap: 8px;
+  }
+
+  .card-arrow {
+    right: 16px;
+    bottom: 18px;
+  }
+
+  .mock-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px 16px;
+    gap: 14px;
+  }
+
+  .mock-left {
+    width: 100%;
+    gap: 12px;
+  }
+
+  .mock-title {
+    font-size: 17px;
+  }
+
+  .mock-sub {
+    font-size: 12px;
+  }
+
+  .mock-cta {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .exam-badge {
+    font-size: 10px;
+    letter-spacing: .8px;
+    padding: 4px 10px;
+  }
+
+  .card-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-meta {
+    gap: 10px;
+  }
+
+  .meta-item {
+    min-width: 110px;
+  }
+}
