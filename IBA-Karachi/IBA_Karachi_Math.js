@@ -30,13 +30,62 @@ async function guardPage() {
 }
 
 /* ── STATE ───────────────────────────────────────────────────── */
-let questions    = []
-let answers      = {}
-let currentIndex = 0
+let questions        = []
+let answers          = {}
+let currentIndex     = 0
 let timerInterval
-let secondsLeft  = 7200
-let paperData    = null
-let reviewMode   = false
+let secondsLeft      = 7200
+let paperData        = null
+let reviewMode       = false
+let hasSubmitted     = false
+let submitInProgress = false
+
+function ensureToastStyles() {
+  if (document.getElementById('saveToastStyles')) return
+  const style = document.createElement('style')
+  style.id = 'saveToastStyles'
+  style.textContent = `
+    .save-toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #ffffff;
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    }
+    .save-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .save-toast.success { background: #1e7f4f; }
+    .save-toast.error { background: #b63a3a; }
+  `
+  document.head.appendChild(style)
+}
+
+function showSaveToast(message, type = 'success') {
+  ensureToastStyles()
+  const toast = document.createElement('div')
+  toast.className = `save-toast ${type}`
+  toast.textContent = message
+  document.body.appendChild(toast)
+
+  requestAnimationFrame(() => {
+    toast.classList.add('show')
+  })
+
+  setTimeout(() => {
+    toast.classList.remove('show')
+    setTimeout(() => toast.remove(), 250)
+  }, 2500)
+}
 
 /* ── INIT ────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -51,9 +100,9 @@ async function getHeaders() {
   const token = session ? session.access_token : SUPABASE_KEY
 
   return {
-    'apikey': SUPABASE_KEY,
+    'apikey':        SUPABASE_KEY,
     'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
+    'Content-Type':  'application/json'
   }
 }
 
@@ -141,7 +190,7 @@ async function loadQuestions() {
       paperData = null
     }
 
-    // 2. Fetch questions from "Question_Bank" table
+    // 2. Fetch questions
     questions = await fetchQuestionsForPaper(paperId)
 
     if (!questions.length) {
@@ -177,16 +226,16 @@ async function loadQuestions() {
 
 /* ── UI HELPERS ──────────────────────────────────────────────── */
 function showState(state) {
-  document.getElementById('loadingState').style.display     = state === 'loading' ? 'flex'  : 'none'
-  document.getElementById('errorState').style.display       = state === 'error'   ? 'block' : 'none'
-  document.getElementById('questionContent').style.display  = state === 'content' ? 'block' : 'none'
+  document.getElementById('loadingState').style.display    = state === 'loading' ? 'flex'  : 'none'
+  document.getElementById('errorState').style.display      = state === 'error'   ? 'block' : 'none'
+  document.getElementById('questionContent').style.display = state === 'content' ? 'block' : 'none'
 }
 
 function buildGrid() {
   const grid = document.getElementById('qGrid')
   grid.innerHTML = ''
   questions.forEach((_, i) => {
-    const dot = document.createElement('button')
+    const dot       = document.createElement('button')
     dot.className   = 'q-dot'
     dot.type        = 'button'
     dot.textContent = i + 1
@@ -207,32 +256,27 @@ function renderQuestion() {
   const pct = ((currentIndex + 1) / questions.length * 100).toFixed(1)
   document.getElementById('topProgressFill').style.width = pct + '%'
 
-  const opts   = document.getElementById('optionsList')
+  const opts     = document.getElementById('optionsList')
   opts.innerHTML = ''
-  const keys   = ['a', 'b', 'c', 'd']
-  const labels = ['A', 'B', 'C', 'D']
+  const keys     = ['a', 'b', 'c', 'd']
+  const labels   = ['A', 'B', 'C', 'D']
   const selected = answers[currentIndex]
 
   keys.forEach((key, i) => {
     const value = q[`option_${key}`] || ''
     if (!value) return
 
-    const optionEl = document.createElement('div')
+    const optionEl    = document.createElement('div')
     optionEl.className = 'option'
 
     if (reviewMode) {
-      if (key === q.correct) {
-        optionEl.classList.add('correct')
-      } else if (key === selected && key !== q.correct) {
-        optionEl.classList.add('wrong')
-      }
+      if (key === q.correct)                          optionEl.classList.add('correct')
+      else if (key === selected && key !== q.correct) optionEl.classList.add('wrong')
     } else if (key === selected) {
       optionEl.classList.add('selected')
     }
 
-    if (!reviewMode) {
-      optionEl.addEventListener('click', () => selectAnswer(key))
-    }
+    if (!reviewMode) optionEl.addEventListener('click', () => selectAnswer(key))
 
     const letterEl       = document.createElement('div')
     letterEl.className   = 'option-letter'
@@ -275,11 +319,8 @@ function renderQuestion() {
 
 function selectAnswer(key) {
   if (reviewMode) return
-  if (answers[currentIndex] === key) {
-    delete answers[currentIndex]
-  } else {
-    answers[currentIndex] = key
-  }
+  if (answers[currentIndex] === key) delete answers[currentIndex]
+  else answers[currentIndex] = key
   renderQuestion()
 }
 
@@ -298,25 +339,19 @@ function updateStats() {
   const total     = questions.length
   const remaining = total - answered
 
-  document.getElementById('answeredCount').textContent = answered
-  document.getElementById('skippedCount').textContent  = remaining
+  document.getElementById('answeredCount').textContent  = answered
+  document.getElementById('skippedCount').textContent   = remaining
   document.getElementById('remainingCount').textContent = remaining
 }
 
 function prevQuestion() {
-  if (currentIndex > 0) {
-    currentIndex--
-    renderQuestion()
-  }
+  if (currentIndex > 0) { currentIndex--; renderQuestion() }
 }
 
 function nextQuestion() {
-  if (currentIndex < questions.length - 1) {
-    currentIndex++
-    renderQuestion()
-  } else {
-    submitTest()
-  }
+  if (hasSubmitted) return
+  if (currentIndex < questions.length - 1) { currentIndex++; renderQuestion() }
+  else submitTest()
 }
 
 function jumpTo(index) {
@@ -327,12 +362,10 @@ function jumpTo(index) {
 function startTimer() {
   updateTimerDisplay()
   timerInterval = setInterval(() => {
+    if (hasSubmitted) return
     secondsLeft--
     updateTimerDisplay()
-    if (secondsLeft <= 0) {
-      clearInterval(timerInterval)
-      submitTest()
-    }
+    if (secondsLeft <= 0) { clearInterval(timerInterval); submitTest() }
   }, 1000)
 }
 
@@ -348,39 +381,160 @@ function updateTimerDisplay() {
   else if (secondsLeft <= 900) timer.classList.add('warning')
 }
 
-function pad(n) {
-  return String(n).padStart(2, '0')
-}
+function pad(n) { return String(n).padStart(2, '0') }
 
-function submitTest() {
-  clearInterval(timerInterval)
-  let correct = 0
-  let wrong   = 0
-  let skipped = 0
+function calculateResult() {
+  let correct = 0, wrong = 0, skipped = 0
 
   questions.forEach((q, idx) => {
     const selected = String(answers[idx] || '').trim().toLowerCase()
     const right    = String(q.correct   || '').trim().toLowerCase()
-    if (!selected)          skipped++
+    if (!selected)             skipped++
     else if (selected === right) correct++
-    else                    wrong++
+    else                       wrong++
   })
 
-  const score = Math.round((correct / questions.length) * 100)
+  const attempted = correct + wrong
+  const score     = Math.round((correct / (questions.length || 1)) * 100)
+  return { correct, wrong, skipped, attempted, score }
+}
 
-  document.getElementById('scoreVal').textContent   = score + '%'
-  document.getElementById('correctVal').textContent = correct
-  document.getElementById('wrongVal').textContent   = wrong
-  document.getElementById('skippedVal').textContent = skipped
+function getLocalStatsStoreKey(userId) {
+  return `openprep_user_stats_v1_${userId}`
+}
+
+function readLocalStats(userId) {
+  try {
+    const raw = localStorage.getItem(getLocalStatsStoreKey(userId))
+    return raw ? JSON.parse(raw) : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function writeLocalStats(userId, map) {
+  try {
+    localStorage.setItem(getLocalStatsStoreKey(userId), JSON.stringify(map))
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
+/* ── SAVE STATS — UPSERT PER PAPER ──────────────────────────── */
+/*
+  Logic:
+  - One row per (user_id, paper_id) in the database
+  - On reattempt: only UPDATE if the new score is BETTER than stored
+  - This means homepage stats always reflect best performance per paper
+  - Total attempted = sum of questions across best attempts (not doubled)
+*/
+async function persistUserStats(result) {
+  const { data: { session } } = await supabaseClient.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) return false
+
+  const paperId = getPaperId()
+
+  if (!paperId) return false
+
+  // Local fallback keeps progress visible on homepage even if DB relation/policies are misconfigured.
+  const localStats = readLocalStats(userId)
+  const existingLocal = localStats[paperId]
+  if (!existingLocal || result.correct > (existingLocal.correct || 0)) {
+    localStats[paperId] = {
+      attempted: result.attempted,
+      correct: result.correct,
+      wrong: result.wrong
+    }
+    writeLocalStats(userId, localStats)
+  }
+
+  try {
+    // 1. Check if a previous best attempt exists for this paper
+    const { data: existing, error: selectError } = await supabaseClient
+      .from('user_stats')
+      .select('id, correct')
+      .eq('user_id', userId)
+      .eq('paper_id', paperId)
+      .maybeSingle()
+
+    if (selectError) {
+      console.warn('Could not read user_stats:', selectError.message)
+      return true
+    }
+
+    if (existing) {
+      // Row exists — only update if new attempt has MORE correct answers
+      if (result.correct > existing.correct) {
+        const { error } = await supabaseClient
+          .from('user_stats')
+          .update({
+            attempted: result.attempted,
+            correct:   result.correct,
+            wrong:     result.wrong,
+          })
+          .eq('id', existing.id)
+
+        if (error) console.warn('Could not update user_stats:', error.message)
+      }
+      // If not better, do nothing — keep the previous best
+      return true
+    } else {
+      // No previous attempt — insert fresh row
+      const { error } = await supabaseClient
+        .from('user_stats')
+        .insert([{
+          user_id:   userId,
+          paper_id:  paperId,
+          attempted: result.attempted,
+          correct:   result.correct,
+          wrong:     result.wrong,
+        }])
+
+      if (error) console.warn('Could not insert user_stats:', error.message)
+      return true
+    }
+  } catch (err) {
+    console.warn('persistUserStats failed:', err.message)
+    return true
+  }
+
+  return true
+}
+
+function showResultModal(result) {
+  document.getElementById('scoreVal').textContent   = result.score + '%'
+  document.getElementById('correctVal').textContent = result.correct
+  document.getElementById('wrongVal').textContent   = result.wrong
+  document.getElementById('skippedVal').textContent = result.skipped
   document.getElementById('resultModal').style.display = 'flex'
-
   reviewMode = false
+}
+
+async function submitTest() {
+  if (submitInProgress || hasSubmitted) return
+  submitInProgress = true
+
+  const submitBtn = document.getElementById('submitTestBtn')
+  if (submitBtn) submitBtn.disabled = true
+
+  clearInterval(timerInterval)
+  const result = calculateResult()
+  const statsSaved = await persistUserStats(result)
+  showResultModal(result)
+  showSaveToast(
+    statsSaved ? 'Result saved to your profile.' : 'Result shown, but stats could not be saved.',
+    statsSaved ? 'success' : 'error'
+  )
+  hasSubmitted     = true
+  submitInProgress = false
 }
 
 function reviewAnswers() {
   reviewMode = true
-  document.getElementById('resultModal').style.display    = 'none'
-  document.getElementById('submitTestBtn').style.display  = 'none'
+  document.getElementById('resultModal').style.display   = 'none'
+  document.getElementById('submitTestBtn').style.display = 'none'
   currentIndex = 0
   renderQuestion()
 }

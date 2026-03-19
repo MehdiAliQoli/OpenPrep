@@ -1,40 +1,30 @@
 <!doctype html>
 <html lang="en">
   <head>
-    
-
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-      title="Prepare for IBA Karachi, MDCAT, ECAT, FAST and AKU admission tests with free MCQs, past papers and mock tests. Pakistan's trusted entry test prep platform."
-    />
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Prepare for IBA Karachi, MDCAT, ECAT, FAST and AKU admission tests with free MCQs, past papers and mock tests. Pakistan's trusted entry test prep platform." />
     <title>OpenPrep — Free Test Prep for Pakistani Students</title>
-    <link
-      rel="icon"
-      type="image/jpeg"
-      href="/OpenPrep logo.jpg"
-      sizes="180x180"
-    />
-    <!-- Google Fonts -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap"
-      rel="stylesheet"
-    />
+
+    <!-- Favicons -->
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-<link rel="shortcut icon" href="/favicon.ico" />
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-<meta name="apple-mobile-web-app-title" content="OpenPrep" />
-<link rel="manifest" href="/site.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="OpenPrep" />
+    <link rel="manifest" href="/site.webmanifest" />
 
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
 
-
-    <!-- Your stylesheet -->
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="openprep.css" />
+    <link rel="stylesheet" href="auth-ui.css" />
   </head>
   <body>
+<script src="/supabase.js"></script>
     <!-- ─── NAV ──────────────────────────────────────── -->
     <nav>
       <div class="brand-block">
@@ -49,7 +39,33 @@
         <li><a href="/contributors.html">Contributors</a></li>
         <li><a href="/about.html">About</a></li>
       </ul>
-      <a href="/Signup/auth.html" class="nav-cta">Start Free →</a>
+
+      <!-- Auth area: shows login button OR profile avatar -->
+      <div class="nav-auth">
+        <!-- Shown when logged OUT -->
+        <a href="/Signup/auth.html" class="nav-cta" id="navLoginBtn">Start Free →</a>
+
+        <!-- Shown when logged IN -->
+        <div class="profile-wrap" id="profileWrap" style="display:none;">
+          <button class="profile-btn" id="profileBtn" aria-label="Account menu">
+            <div class="avatar" id="avatarEl">
+              <!-- Initials or photo filled by JS -->
+            </div>
+          </button>
+          <div class="profile-dropdown" id="profileDropdown">
+            <div class="dropdown-user">
+              <div class="dropdown-avatar" id="dropdownAvatarEl"></div>
+              <div class="dropdown-info">
+                <div class="dropdown-name" id="dropdownName">—</div>
+                <div class="dropdown-email" id="dropdownEmail">—</div>
+              </div>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="/profile.html" class="dropdown-item">My Profile</a>
+            <button class="dropdown-item dropdown-logout" id="logoutBtn">Sign out</button>
+          </div>
+        </div>
+      </div>
     </nav>
 
     <!-- ─── HERO ─────────────────────────────────────── -->
@@ -57,19 +73,52 @@
       <div class="hero-eyebrow">Free for every student in Pakistan</div>
       <h1>Your best shot at <em>the right university</em></h1>
       <p class="hero-sub">
-        Open source test prep for IBA Karachi currently, with LCAT, MDCAT, ECAT,
-        and more coming soon. Practice questions, mock tests, and flashcards —
-        all aligned to your syllabus, all free forever.
+        Open source test prep for IBA Karachi, MDCAT, ECAT, and more —
+        practice questions, mock tests, and flashcards all aligned to your
+        syllabus, all free forever.
       </p>
       <div class="hero-actions">
-        <a href="Other_detials/paractice.html" class="btn-primary"
-          >Start Practicing</a
-        >
-        <a href="#" class="btn-ghost">See how it works</a>
+        <a href="Other_detials/paractice.html" class="btn-primary">Start Practicing</a>
+        <a href="#coverage" class="btn-ghost">See what we cover</a>
+      </div>
+    </section>
+
+    <!-- ─── USER STATS (only visible when logged in) ─── -->
+    <section class="stats-section" id="statsSection" style="display:none;">
+      <div class="stats-label">Your progress</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon stat-icon--blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="stat-body">
+            <div class="stat-value" id="statAttempted">—</div>
+            <div class="stat-label-text">Questions Attempted</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon stat-icon--green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="stat-body">
+            <div class="stat-value" id="statCorrect">—</div>
+            <div class="stat-label-text">Correct Answers</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon stat-icon--red">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </div>
+          <div class="stat-body">
+            <div class="stat-value" id="statWrong">—</div>
+            <div class="stat-label-text">Wrong Answers</div>
+          </div>
+        </div>
       </div>
     </section>
 
     <div class="divider"></div>
+
     <!-- ─── UNIVERSITY COVERAGE ──────────────────────── -->
     <section class="coverage" id="coverage">
       <div class="section-label">What we cover</div>
@@ -82,79 +131,45 @@
       </div>
 
       <div class="exam-grid">
-        <a
-          href="\IBA-Karachi/subject.html"
-          style="text-decoration: none"
-          data-category="university"
-        >
+        <a href="\IBA-Karachi/subject.html" style="text-decoration:none" data-category="university">
           <div class="exam-card">
             <div class="exam-tag">University</div>
-            <img
-              class="university-logo"
-              src="../logo_IBA_Karachi.png"
-              alt="IBA Karachi Logo"
-            />
+            <img class="university-logo" src="../logo_IBA_Karachi.png" alt="IBA Karachi Logo" />
             <h3>IBA Karachi</h3>
-
-            <p>
-              Full prep for IBA's aptitude test — quantitative, verbal and
-              analytical.
-            </p>
+            <p>Full prep for IBA's aptitude test — quantitative, verbal and analytical.</p>
             <div class="exam-meta">
-              <span><strong>1,200+</strong> questions</span>
+              <span><strong>2,100+</strong> questions</span>
               <span><strong>8</strong> mock tests</span>
             </div>
           </div>
         </a>
 
-        <a
-          href="/Mdcat/Mdcat_subject.html"
-          style="text-decoration: none"
-          data-category="Mdcat"
-        >
+        <a href="/Mdcat/Mdcat_subject.html" style="text-decoration:none" data-category="medical">
           <div class="exam-card">
-            <div class="exam-tag">University</div>
-            <img
-              class="university-logo"
-              src="../logo_IBA_Karachi.png"
-              alt="IBA Karachi Logo"
-            />
-            <h3>Mdcat</h3>
-
-            <p>
-              Full prep for MDCAT — physics, chemistry, biology and English for medical college entry tests across Pakistan.
-            </p>
+            <div class="exam-tag">Medical</div>
+            <img class="university-logo" src="../logo_IBA_Karachi.png" alt="MDCAT Logo" />
+            <h3>MDCAT</h3>
+            <p>Full prep for MDCAT — physics, chemistry, biology and English for medical college entry tests across Pakistan.</p>
             <div class="exam-meta">
-              <span><strong>--</strong> questions</span>
-              <span><strong>--</strong> mock tests</span>
+              <span><strong>—</strong> questions</span>
+              <span><strong>—</strong> mock tests</span>
             </div>
           </div>
         </a>
 
-        <div
-          class="exam-card exam-card--coming-soon"
-          data-category="engineering"
-        >
+        <div class="exam-card exam-card--coming-soon" data-category="engineering">
           <div class="exam-tag exam-tag--coming-soon">Engineering</div>
           <div class="coming-soon-badge">Coming Soon</div>
           <h3>ECAT</h3>
-          <p>
-            Math, Physics, Chemistry and English for UET and other engineering
-            university entry tests.
-          </p>
+          <p>Math, Physics, Chemistry and English for UET and other engineering university entry tests.</p>
           <div class="exam-meta">
             <span><strong>—</strong> questions</span>
             <span><strong>—</strong> mock tests</span>
           </div>
-          <div class="coming-soon-footer">
-            🔔 Available soon — check back later!
-          </div>
+          <div class="coming-soon-footer">🔔 Available soon — check back later!</div>
         </div>
 
-        <div
-          class="exam-card exam-card--coming-soon"
-          data-category="university"
-        >
+        <div class="exam-card exam-card--coming-soon" data-category="university">
           <div class="exam-tag exam-tag--coming-soon">University</div>
           <div class="coming-soon-badge">Coming Soon</div>
           <h3>LCAT</h3>
@@ -163,28 +178,19 @@
             <span><strong>—</strong> questions</span>
             <span><strong>—</strong> mock tests</span>
           </div>
-          <div class="coming-soon-footer">
-            🔔 Available soon — check back later!
-          </div>
+          <div class="coming-soon-footer">🔔 Available soon — check back later!</div>
         </div>
 
-        <div
-          class="exam-card exam-card--coming-soon"
-          data-category="university"
-        >
+        <div class="exam-card exam-card--coming-soon" data-category="university">
           <div class="exam-tag exam-tag--coming-soon">University</div>
           <div class="coming-soon-badge">Coming Soon</div>
           <h3>FAST</h3>
-          <p>
-            Math, quantitative, verbal and analytical for FAST Admission Test.
-          </p>
+          <p>Math, quantitative, verbal and analytical for FAST Admission Test.</p>
           <div class="exam-meta">
             <span><strong>—</strong> questions</span>
             <span><strong>—</strong> mock tests</span>
           </div>
-          <div class="coming-soon-footer">
-            🔔 Available soon — check back later!
-          </div>
+          <div class="coming-soon-footer">🔔 Available soon — check back later!</div>
         </div>
       </div>
     </section>
@@ -194,17 +200,15 @@
       <div class="oss-section">
         <div class="oss-icon">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57
-                   0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41
-                   -1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815
-                   2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925
-                   0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23
-                   .96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65
-                   .24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925
-                   .435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57
-                   A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
-            />
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57
+                 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41
+                 -1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815
+                 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925
+                 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23
+                 .96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65
+                 .24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925
+                 .435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57
+                 A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
           </svg>
         </div>
         <div class="oss-text">
@@ -225,7 +229,8 @@
       <p>Made with care by Mehdi Ali Qoli at IBA Karachi</p>
     </footer>
 
-    <!-- Your script -->
+    <!-- Scripts -->
     <script src="openprep.js"></script>
+    <script src="auth-ui.js"></script>
   </body>
 </html>

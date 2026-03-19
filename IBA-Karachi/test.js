@@ -36,6 +36,55 @@ let timerInterval
 let secondsLeft  = 7200    // fixed 2 hours (no duration col in DB)
 let paperData    = null
 let reviewMode   = false
+let hasSubmitted = false
+let submitInProgress = false
+
+function ensureToastStyles() {
+  if (document.getElementById('saveToastStyles')) return
+  const style = document.createElement('style')
+  style.id = 'saveToastStyles'
+  style.textContent = `
+    .save-toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #ffffff;
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    }
+    .save-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .save-toast.success { background: #1e7f4f; }
+    .save-toast.error { background: #b63a3a; }
+  `
+  document.head.appendChild(style)
+}
+
+function showSaveToast(message, type = 'success') {
+  ensureToastStyles()
+  const toast = document.createElement('div')
+  toast.className = `save-toast ${type}`
+  toast.textContent = message
+  document.body.appendChild(toast)
+
+  requestAnimationFrame(() => {
+    toast.classList.add('show')
+  })
+
+  setTimeout(() => {
+    toast.classList.remove('show')
+    setTimeout(() => toast.remove(), 250)
+  }, 2500)
+}
 
 /* ── INIT ────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -45,10 +94,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 })
 
 /* ── GET HEADERS FOR SUPABASE ────────────────────────────────── */
-function getHeaders() {
+async function getHeaders() {
+  const { data: { session } } = await supabaseClient.auth.getSession()
+  const token = session ? session.access_token : SUPABASE_KEY
+
   return {
     'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
   }
 }
@@ -87,7 +139,7 @@ async function parseErrorBody(response) {
 async function fetchQuestionsForPaper(paperId) {
   const response = await fetch(
     `${SUPABASE_URL}/rest/v1/test?paper_id=eq.${encodeURIComponent(paperId)}&order=id.asc&select=*`,
-    { headers: getHeaders() }
+    { headers: await getHeaders() }
   )
 
   if (response.ok) {
@@ -102,7 +154,7 @@ async function fetchQuestionsForPaper(paperId) {
 async function isAnyQuestionVisible() {
   const response = await fetch(
     `${SUPABASE_URL}/rest/v1/test?limit=1&select=id`,
-    { headers: getHeaders() }
+    { headers: await getHeaders() }
   )
 
   if (!response.ok) return false
@@ -127,7 +179,7 @@ async function loadQuestions() {
     try {
       const paperRes = await fetch(
         `${SUPABASE_URL}/rest/v1/papers?id=eq.${encodeURIComponent(paperId)}&select=id,title`,
-        { headers: getHeaders() }
+        { headers: await getHeaders() }
       )
       if (paperRes.ok) {
         const papers = await paperRes.json()
@@ -144,7 +196,7 @@ async function loadQuestions() {
       const anyVisible = await isAnyQuestionVisible()
       if (!anyVisible) {
         throw new Error(
-          'No rows visible in the "test" table. If RLS is enabled, add a SELECT policy for anon (or disable RLS for testing).'
+          'No rows visible in the "test" table. If RLS is enabled, add a SELECT policy for authenticated users.'
         )
       }
       throw new Error(
@@ -311,6 +363,7 @@ function prevQuestion() {
 }
 
 function nextQuestion() {
+  if (hasSubmitted) return
   if (currentIndex < questions.length - 1) {
     currentIndex++
     renderQuestion()
@@ -327,6 +380,7 @@ function jumpTo(index) {
 function startTimer() {
   updateTimerDisplay()
   timerInterval = setInterval(() => {
+    if (hasSubmitted) return
     secondsLeft--
     updateTimerDisplay()
     if (secondsLeft <= 0) {
@@ -352,12 +406,11 @@ function pad(n) {
   return String(n).padStart(2, '0')
 }
 
-function submitTest() {
-  clearInterval(timerInterval)
+function calculateResult() {
   let correct = 0
   let wrong = 0
   let skipped = 0
-  
+
   questions.forEach((q, idx) => {
     const selected = String(answers[idx] || '').trim().toLowerCase()
     const right = String(q.correct || '').trim().toLowerCase()
@@ -366,15 +419,131 @@ function submitTest() {
     else wrong++
   })
 
-  const score = Math.round((correct / questions.length) * 100)
-  
-  document.getElementById('scoreVal').textContent = score + '%'
-  document.getElementById('correctVal').textContent = correct
-  document.getElementById('wrongVal').textContent = wrong
-  document.getElementById('skippedVal').textContent = skipped
+  const attempted = correct + wrong
+  const total = questions.length || 1
+  const score = Math.round((correct / total) * 100)
+
+  return { correct, wrong, skipped, attempted, score }
+}
+
+function getLocalStatsStoreKey(userId) {
+  return `openprep_user_stats_v1_${userId}`
+}
+
+function readLocalStats(userId) {
+  try {
+    const raw = localStorage.getItem(getLocalStatsStoreKey(userId))
+    return raw ? JSON.parse(raw) : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function writeLocalStats(userId, map) {
+  try {
+    localStorage.setItem(getLocalStatsStoreKey(userId), JSON.stringify(map))
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
+async function persistUserStats(result) {
+  const { data: { session } } = await supabaseClient.auth.getSession()
+  const userId = session?.user?.id
+  const paperId = getPaperId()
+  if (!userId || !paperId) return false
+
+  // Local fallback keeps progress visible on homepage even if DB relation/policies are misconfigured.
+  const localStats = readLocalStats(userId)
+  const existingLocal = localStats[paperId]
+  if (!existingLocal || result.correct > (existingLocal.correct || 0)) {
+    localStats[paperId] = {
+      attempted: result.attempted,
+      correct: result.correct,
+      wrong: result.wrong
+    }
+    writeLocalStats(userId, localStats)
+  }
+
+  try {
+    const { data: existing, error: selectError } = await supabaseClient
+      .from('user_stats')
+      .select('id, correct')
+      .eq('user_id', userId)
+      .eq('paper_id', paperId)
+      .maybeSingle()
+
+    if (selectError) {
+      console.warn('Could not read user_stats:', selectError.message)
+      return true
+    }
+
+    if (existing) {
+      if (result.correct > (existing.correct || 0)) {
+        const { error: updateError } = await supabaseClient
+          .from('user_stats')
+          .update({
+            attempted: result.attempted,
+            correct: result.correct,
+            wrong: result.wrong
+          })
+          .eq('id', existing.id)
+        if (updateError) {
+          console.warn('Could not update user_stats:', updateError.message)
+        }
+      }
+      return true
+    }
+
+    const { error: insertError } = await supabaseClient
+      .from('user_stats')
+      .insert([
+        {
+          user_id: userId,
+          paper_id: paperId,
+          attempted: result.attempted,
+          correct: result.correct,
+          wrong: result.wrong
+        }
+      ])
+
+    if (insertError) {
+      console.warn('Could not insert user_stats:', insertError.message)
+    }
+  } catch (err) {
+    console.warn('persistUserStats failed:', err.message)
+  }
+
+  return true
+}
+
+function showResultModal(result) {
+  document.getElementById('scoreVal').textContent = result.score + '%'
+  document.getElementById('correctVal').textContent = result.correct
+  document.getElementById('wrongVal').textContent = result.wrong
+  document.getElementById('skippedVal').textContent = result.skipped
   document.getElementById('resultModal').style.display = 'flex'
-  
   reviewMode = false
+}
+
+async function submitTest() {
+  if (submitInProgress || hasSubmitted) return
+  submitInProgress = true
+
+  const submitBtn = document.getElementById('submitTestBtn')
+  if (submitBtn) submitBtn.disabled = true
+
+  clearInterval(timerInterval)
+  const result = calculateResult()
+  const statsSaved = await persistUserStats(result)
+  showResultModal(result)
+  showSaveToast(
+    statsSaved ? 'Result saved to your profile.' : 'Result shown, but stats could not be saved.',
+    statsSaved ? 'success' : 'error'
+  )
+  hasSubmitted = true
+  submitInProgress = false
 }
 
 function reviewAnswers() {
