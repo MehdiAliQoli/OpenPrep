@@ -6,7 +6,15 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error('Missing Supabase config. Create root supabase.js (gitignored) and define window.SUPABASE_URL + window.SUPABASE_KEY.')
 }
 
+async function guardPage() {
+  const { data: { session } } = await supabase.auth.getSession()
 
+  if (!session) {
+    window.location.replace('login.html') // redirect to your login page
+  }
+}
+
+guardPage()
 /* ── STATE ───────────────────────────────────────────────────── */
 let questions    = []
 let answers      = {}
