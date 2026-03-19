@@ -132,7 +132,7 @@ async function loadQuestions() {
     // 3. Set up UI
     const resolvedTitle = paperData?.title || `Paper ${paperId}`
     document.getElementById('paperTitle').textContent = resolvedTitle
-    document.title = `OpenPrep.pk — ${resolvedTitle}`
+    document.title = `OpenPrep — ${resolvedTitle}`
     document.getElementById('qTotal').textContent     = questions.length
     document.getElementById('remainingCount').textContent = questions.length
 

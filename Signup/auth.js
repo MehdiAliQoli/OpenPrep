@@ -1,5 +1,5 @@
 /* ================================================================
-  OpenPrep.pk — Auth JS
+  OpenPrep — Auth JS
   ----------------------------------------------------------------
   Supabase-powered authentication flow.
   ================================================================ */
@@ -19,7 +19,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 function getSiteBaseUrl() {
   if (window.location.protocol === 'file:') {
-    return 'https://openprep.pk';
+    return 'https://openprep';
   }
   return window.location.origin;
 }
