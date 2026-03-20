@@ -356,7 +356,7 @@ function prevQuestion() {
 }
 
 function nextQuestion() {
-  if (hasSubmitted) return
+  if (hasSubmitted && !reviewMode) return
   if (currentIndex < questions.length - 1) { currentIndex++; renderQuestion() }
   else submitTest()
 }
@@ -564,7 +564,12 @@ function showResultModal(result) {
   document.getElementById('correctVal').textContent = result.correct
   document.getElementById('wrongVal').textContent   = result.wrong
   document.getElementById('skippedVal').textContent = result.skipped
-  document.getElementById('resultModal').style.display = 'flex'
+  const modal = document.getElementById('resultModal')
+  if (modal) {
+    modal.style.display = 'flex'
+  } else {
+    showSaveToast('Test submitted successfully.', 'success')
+  }
   reviewMode = false
 }
 
@@ -577,15 +582,26 @@ async function submitTest() {
 
   clearInterval(timerInterval)
   const result = calculateResult()
-  const statsSaved = await persistUserStats(result)
+
+  let statsSaved = false
+  let saveMessage = 'Result saved only on this device. Server sync failed.'
+
+  try {
+    statsSaved = await persistUserStats(result)
+    if (statsSaved) {
+      saveMessage = 'Result saved to server profile.'
+    } else {
+      saveMessage = `Result saved only on this device. ${lastServerSyncError || 'Server sync failed.'}`
+    }
+  } catch (err) {
+    lastServerSyncError = err?.message || 'Server sync failed.'
+    saveMessage = `Result saved only on this device. ${lastServerSyncError}`
+  }
+
+  hasSubmitted = true
+  if (submitBtn) submitBtn.textContent = 'Submitted'
   showResultModal(result)
-  showSaveToast(
-    statsSaved
-      ? 'Result saved to server profile.'
-      : `Result saved only on this device. ${lastServerSyncError || 'Server sync failed.'}`,
-    statsSaved ? 'success' : 'error'
-  )
-  hasSubmitted     = true
+  showSaveToast(saveMessage, statsSaved ? 'success' : 'error')
   submitInProgress = false
 }
 

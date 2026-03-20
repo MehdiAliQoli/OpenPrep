@@ -363,7 +363,7 @@ function prevQuestion() {
 }
 
 function nextQuestion() {
-  if (hasSubmitted) return
+  if (hasSubmitted && !reviewMode) return
   if (currentIndex < questions.length - 1) {
     currentIndex++
     renderQuestion()
@@ -523,7 +523,12 @@ function showResultModal(result) {
   document.getElementById('correctVal').textContent = result.correct
   document.getElementById('wrongVal').textContent = result.wrong
   document.getElementById('skippedVal').textContent = result.skipped
-  document.getElementById('resultModal').style.display = 'flex'
+  const modal = document.getElementById('resultModal')
+  if (modal) {
+    modal.style.display = 'flex'
+  } else {
+    showSaveToast('Test submitted successfully.', 'success')
+  }
   reviewMode = false
 }
 
@@ -536,13 +541,24 @@ async function submitTest() {
 
   clearInterval(timerInterval)
   const result = calculateResult()
-  const statsSaved = await persistUserStats(result)
-  showResultModal(result)
-  showSaveToast(
-    statsSaved ? 'Result saved to your profile.' : 'Result shown, but stats could not be saved.',
-    statsSaved ? 'success' : 'error'
-  )
+
+  let statsSaved = false
+  let saveMessage = 'Result shown, but stats could not be saved.'
+
+  try {
+    statsSaved = await persistUserStats(result)
+    saveMessage = statsSaved
+      ? 'Result saved to your profile.'
+      : 'Result shown, but stats could not be saved.'
+  } catch (_) {
+    statsSaved = false
+    saveMessage = 'Result shown, but stats could not be saved.'
+  }
+
   hasSubmitted = true
+  if (submitBtn) submitBtn.textContent = 'Submitted'
+  showResultModal(result)
+  showSaveToast(saveMessage, statsSaved ? 'success' : 'error')
   submitInProgress = false
 }
 
